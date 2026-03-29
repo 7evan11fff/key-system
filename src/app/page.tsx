@@ -87,6 +87,10 @@ export default function Dashboard() {
   const [newKeyNote, setNewKeyNote] = useState('');
   const [newKeyExpiry, setNewKeyExpiry] = useState('');
   const [newKeyHwidLock, setNewKeyHwidLock] = useState(false);
+  
+  // Edit key states
+  const [editKeyExpiry, setEditKeyExpiry] = useState('');
+  const [editKeyNote, setEditKeyNote] = useState('');
 
   // Load software list
   const loadSoftware = useCallback(async () => {
@@ -206,6 +210,39 @@ export default function Dashboard() {
   // Copy key to clipboard
   const copyKey = (key: string) => {
     navigator.clipboard.writeText(key);
+  };
+
+  // Open edit modal
+  const openEditModal = (key: LicenseKey) => {
+    setEditingKey(key);
+    setEditKeyNote(key.note || '');
+    if (key.expiresAt) {
+      const date = new Date(key.expiresAt);
+      setEditKeyExpiry(date.toISOString().slice(0, 16));
+    } else {
+      setEditKeyExpiry('');
+    }
+  };
+
+  // Update key
+  const handleUpdateKey = async () => {
+    if (!editingKey) return;
+    
+    let expiresAt: number | null = null;
+    if (editKeyExpiry) {
+      expiresAt = new Date(editKeyExpiry).getTime();
+    }
+    
+    await api.patch('/api/admin/keys', {
+      id: editingKey.id,
+      expiresAt,
+      note: editKeyNote || undefined,
+    });
+    
+    setEditingKey(null);
+    setEditKeyExpiry('');
+    setEditKeyNote('');
+    loadKeys();
   };
 
   // Login screen
@@ -372,6 +409,12 @@ export default function Dashboard() {
                         <td className="py-3">
                           <div className="flex gap-1">
                             <button
+                              onClick={() => openEditModal(key)}
+                              className="px-2 py-1 text-xs bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
                               onClick={() => handleToggleKey(key)}
                               className={`px-2 py-1 text-xs rounded transition-colors ${
                                 key.enabled
@@ -505,6 +548,63 @@ export default function Dashboard() {
                 className="flex-1 p-3 bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg font-medium transition-colors"
               >
                 Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Key Modal */}
+      {editingKey && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-[var(--card)] p-6 rounded-lg border border-[var(--border)] w-full max-w-md">
+            <h3 className="text-xl font-bold mb-4">Edit Key</h3>
+            
+            <div className="mb-3">
+              <label className="block text-sm text-[var(--muted)] mb-1">Key</label>
+              <div className="font-mono text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg p-3">
+                {editingKey.key}
+              </div>
+            </div>
+            
+            <div className="mb-3">
+              <label className="block text-sm text-[var(--muted)] mb-1">Note</label>
+              <input
+                type="text"
+                value={editKeyNote}
+                onChange={(e) => setEditKeyNote(e.target.value)}
+                placeholder="e.g., Customer name or email"
+                className="w-full p-3 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--primary)]"
+              />
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm text-[var(--muted)] mb-1">Expiration</label>
+              <input
+                type="datetime-local"
+                value={editKeyExpiry}
+                onChange={(e) => setEditKeyExpiry(e.target.value)}
+                className="w-full p-3 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--primary)]"
+              />
+              <p className="text-xs text-[var(--muted)] mt-1">Leave empty for no expiration</p>
+            </div>
+            
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setEditingKey(null);
+                  setEditKeyExpiry('');
+                  setEditKeyNote('');
+                }}
+                className="flex-1 p-3 bg-[var(--card-hover)] hover:bg-[var(--border)] rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateKey}
+                className="flex-1 p-3 bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg font-medium transition-colors"
+              >
+                Save
               </button>
             </div>
           </div>
