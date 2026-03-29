@@ -34,8 +34,8 @@ export async function createSoftware(name: string, description?: string): Promis
 }
 
 export async function getSoftware(id: string): Promise<Software | null> {
-  const data = await redis.get<string>(KEYS.software(id));
-  return data ? JSON.parse(data) : null;
+  const data = await redis.get<Software>(KEYS.software(id));
+  return data || null;
 }
 
 export async function getAllSoftware(): Promise<Software[]> {
@@ -98,13 +98,13 @@ export async function createKey(
 }
 
 export async function getKey(id: string): Promise<LicenseKey | null> {
-  const data = await redis.get<string>(KEYS.key(id));
-  return data ? JSON.parse(data) : null;
+  const data = await redis.get<LicenseKey>(KEYS.key(id));
+  return data || null;
 }
 
 export async function getKeyByValue(keyValue: string): Promise<LicenseKey | null> {
-  const id = await redis.get<string>(KEYS.keyByValue(keyValue));
-  if (!id) return null;
+  const id = await redis.get(KEYS.keyByValue(keyValue));
+  if (!id || typeof id !== 'string') return null;
   return getKey(id);
 }
 
