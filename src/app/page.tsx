@@ -85,12 +85,28 @@ export default function Dashboard() {
   const [newSoftwareName, setNewSoftwareName] = useState('');
   const [newSoftwareDesc, setNewSoftwareDesc] = useState('');
   const [newKeyNote, setNewKeyNote] = useState('');
-  const [newKeyExpiry, setNewKeyExpiry] = useState('');
+  const [newKeyExpiryPreset, setNewKeyExpiryPreset] = useState<string>('infinite');
+  const [newKeyCustomDate, setNewKeyCustomDate] = useState('');
   const [newKeyHwidLock, setNewKeyHwidLock] = useState(false);
   
   // Edit key states
-  const [editKeyExpiry, setEditKeyExpiry] = useState('');
+  const [editKeyExpiryPreset, setEditKeyExpiryPreset] = useState<string>('custom');
+  const [editKeyCustomDate, setEditKeyCustomDate] = useState('');
   const [editKeyNote, setEditKeyNote] = useState('');
+
+  // Helper to calculate expiry from preset
+  const getExpiryFromPreset = (preset: string, customDate: string): number | null => {
+    const now = Date.now();
+    switch (preset) {
+      case '1day': return now + 24 * 60 * 60 * 1000;
+      case '1week': return now + 7 * 24 * 60 * 60 * 1000;
+      case '1month': return now + 30 * 24 * 60 * 60 * 1000;
+      case '1year': return now + 365 * 24 * 60 * 60 * 1000;
+      case 'custom': return customDate ? new Date(customDate).getTime() : null;
+      case 'infinite': 
+      default: return null;
+    }
+  };
 
   // Load software list
   const loadSoftware = useCallback(async () => {
@@ -162,10 +178,7 @@ export default function Dashboard() {
   const handleCreateKey = async () => {
     if (!selectedSoftware) return;
     
-    let expiresAt: number | null = null;
-    if (newKeyExpiry) {
-      expiresAt = new Date(newKeyExpiry).getTime();
-    }
+    const expiresAt = getExpiryFromPreset(newKeyExpiryPreset, newKeyCustomDate);
     
     await api.post('/api/admin/keys', {
       softwareId: selectedSoftware.id,
@@ -175,7 +188,8 @@ export default function Dashboard() {
     });
     
     setNewKeyNote('');
-    setNewKeyExpiry('');
+    setNewKeyExpiryPreset('infinite');
+    setNewKeyCustomDate('');
     setNewKeyHwidLock(false);
     setShowNewKey(false);
     loadKeys();
@@ -217,10 +231,12 @@ export default function Dashboard() {
     setEditingKey(key);
     setEditKeyNote(key.note || '');
     if (key.expiresAt) {
+      setEditKeyExpiryPreset('custom');
       const date = new Date(key.expiresAt);
-      setEditKeyExpiry(date.toISOString().slice(0, 16));
+      setEditKeyCustomDate(date.toISOString().slice(0, 10));
     } else {
-      setEditKeyExpiry('');
+      setEditKeyExpiryPreset('infinite');
+      setEditKeyCustomDate('');
     }
   };
 
@@ -228,10 +244,7 @@ export default function Dashboard() {
   const handleUpdateKey = async () => {
     if (!editingKey) return;
     
-    let expiresAt: number | null = null;
-    if (editKeyExpiry) {
-      expiresAt = new Date(editKeyExpiry).getTime();
-    }
+    const expiresAt = getExpiryFromPreset(editKeyExpiryPreset, editKeyCustomDate);
     
     await api.patch('/api/admin/keys', {
       id: editingKey.id,
@@ -240,7 +253,8 @@ export default function Dashboard() {
     });
     
     setEditingKey(null);
-    setEditKeyExpiry('');
+    setEditKeyExpiryPreset('custom');
+    setEditKeyCustomDate('');
     setEditKeyNote('');
     loadKeys();
   };
@@ -509,13 +523,38 @@ export default function Dashboard() {
             </div>
             
             <div className="mb-3">
-              <label className="block text-sm text-[var(--muted)] mb-1">Expiration (optional)</label>
-              <input
-                type="datetime-local"
-                value={newKeyExpiry}
-                onChange={(e) => setNewKeyExpiry(e.target.value)}
-                className="w-full p-3 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--primary)]"
-              />
+              <label className="block text-sm text-[var(--muted)] mb-2">Expiration</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {[
+                  { value: '1day', label: '1 Day' },
+                  { value: '1week', label: '1 Week' },
+                  { value: '1month', label: '1 Month' },
+                  { value: '1year', label: '1 Year' },
+                  { value: 'infinite', label: 'Never' },
+                  { value: 'custom', label: 'Custom' },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setNewKeyExpiryPreset(opt.value)}
+                    className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                      newKeyExpiryPreset === opt.value
+                        ? 'bg-[var(--primary)] text-white'
+                        : 'bg-[var(--background)] border border-[var(--border)] hover:bg-[var(--card-hover)]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {newKeyExpiryPreset === 'custom' && (
+                <input
+                  type="date"
+                  value={newKeyCustomDate}
+                  onChange={(e) => setNewKeyCustomDate(e.target.value)}
+                  className="w-full p-3 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--primary)]"
+                />
+              )}
             </div>
             
             <div className="mb-4">
@@ -536,7 +575,8 @@ export default function Dashboard() {
                 onClick={() => {
                   setShowNewKey(false);
                   setNewKeyNote('');
-                  setNewKeyExpiry('');
+                  setNewKeyExpiryPreset('infinite');
+                  setNewKeyCustomDate('');
                   setNewKeyHwidLock(false);
                 }}
                 className="flex-1 p-3 bg-[var(--card-hover)] hover:bg-[var(--border)] rounded-lg transition-colors"
@@ -579,21 +619,46 @@ export default function Dashboard() {
             </div>
             
             <div className="mb-4">
-              <label className="block text-sm text-[var(--muted)] mb-1">Expiration</label>
-              <input
-                type="datetime-local"
-                value={editKeyExpiry}
-                onChange={(e) => setEditKeyExpiry(e.target.value)}
-                className="w-full p-3 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--primary)]"
-              />
-              <p className="text-xs text-[var(--muted)] mt-1">Leave empty for no expiration</p>
+              <label className="block text-sm text-[var(--muted)] mb-2">Expiration</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {[
+                  { value: '1day', label: '+1 Day' },
+                  { value: '1week', label: '+1 Week' },
+                  { value: '1month', label: '+1 Month' },
+                  { value: '1year', label: '+1 Year' },
+                  { value: 'infinite', label: 'Never' },
+                  { value: 'custom', label: 'Custom' },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setEditKeyExpiryPreset(opt.value)}
+                    className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                      editKeyExpiryPreset === opt.value
+                        ? 'bg-[var(--primary)] text-white'
+                        : 'bg-[var(--background)] border border-[var(--border)] hover:bg-[var(--card-hover)]'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {editKeyExpiryPreset === 'custom' && (
+                <input
+                  type="date"
+                  value={editKeyCustomDate}
+                  onChange={(e) => setEditKeyCustomDate(e.target.value)}
+                  className="w-full p-3 bg-[var(--background)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--primary)]"
+                />
+              )}
             </div>
             
             <div className="flex gap-2">
               <button
                 onClick={() => {
                   setEditingKey(null);
-                  setEditKeyExpiry('');
+                  setEditKeyExpiryPreset('custom');
+                  setEditKeyCustomDate('');
                   setEditKeyNote('');
                 }}
                 className="flex-1 p-3 bg-[var(--card-hover)] hover:bg-[var(--border)] rounded-lg transition-colors"
